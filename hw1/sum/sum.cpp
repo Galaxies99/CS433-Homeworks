@@ -11,12 +11,13 @@ using namespace std;
 template <typename T>
 T sum(const vector <T> &vec, bool with_openmp = true, int thread_count = 4) {
     T res = 0;
+    int i, size = vec.size();
     if (with_openmp) {
-        # pragma omp parallel for num_threads(thread_count) reduction(+: res)
-        for (int i = 0; i < vec.size(); ++ i)
+        # pragma omp parallel for num_threads(thread_count) reduction(+: res) private(i)
+        for (i = 0; i < size; ++ i)
             res += vec[i];
     } else {
-        for (int i = 0; i < vec.size(); ++ i)
+        for (i = 0; i < size; ++ i)
             res += vec[i];
     }
     return res;
@@ -26,7 +27,7 @@ int main() {
     ios :: sync_with_stdio(false);
     cin.tie(0); cout.tie(0);
 
-    // # define AUTO_GENERATION
+    # define AUTO_GENERATION
     # ifndef AUTO_GENERATION
     int n;
     cout << "Please input the length of the vector: ";
@@ -42,7 +43,7 @@ int main() {
     # else
     vector <long long> vec;
     srand(time(0));
-    for (int i = 0; i < 100000000; ++ i) vec.push_back(rand());
+    for (int i = 0; i < 100000000; ++ i) vec.push_back(i + rand());
     # endif
 
     double start_time, duration;
