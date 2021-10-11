@@ -4,9 +4,11 @@
 # include <stdio.h>
 # include <stdlib.h>
 # include <iostream>
+# include <sys/time.h>
 
 using namespace std;
 
+const double epsilon = 1e-6;
 
 template <typename T>
 T sum(const vector <T> &vec, bool with_openmp = true, int thread_count = 4) {
@@ -41,31 +43,42 @@ int main() {
         vec.push_back(temp);
     }
     # else
-    vector <long long> vec;
+    vector <double> vec;
     srand(time(0));
-    for (int i = 0; i < 100000000; ++ i) vec.push_back(i + rand());
+    for (int i = 0; i < 100000000; ++ i) vec.push_back(i + rand() % 50000000);
     # endif
 
-    double start_time, duration;
-    long long res;
+    double duration, standard_value;
+    double res;
+    bool correct = true;
 
-    start_time = clock();
+    timeval start, end;
+    gettimeofday(&start, 0);
     res = sum(vec, false);
-    duration = clock() - start_time;
+    standard_value = res;
+    gettimeofday(&end, 0);
+    duration = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1e6;
 
-    cout << "The sum of the vector: " << res << ", total time usage: " << duration / CLOCKS_PER_SEC << " second(s) (without OpenMP, warmup).\n";
+    cout << "The sum of the vector: " << res << ", total time usage: " << duration << " second(s) (without OpenMP, warmup).\n";
 
-    start_time = clock();
+    gettimeofday(&start, 0);
     res = sum(vec, false);
-    duration = clock() - start_time;
+    gettimeofday(&end, 0);
+    correct &= (abs(res - standard_value) < epsilon);
+    duration = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1e6;
 
-    cout << "The sum of the vector: " << res << ", total time usage: " << duration / CLOCKS_PER_SEC << " second(s) (without OpenMP).\n";
+    cout << "The sum of the vector: " << res << ", total time usage: " << duration << " second(s) (without OpenMP).\n";
     
-    for (int thread = 1; thread <= 8; thread ++) {
-        start_time = clock();
+    for (int thread = 1; thread <= 16; thread *= 2) {
+        gettimeofday(&start, 0);
         res = sum(vec, true, thread);
-        duration = clock() - start_time;
-        cout << "The sum of the vector: " << res << ", total time usage: " << duration / CLOCKS_PER_SEC << " second(s) (with OpenMP, " << thread << " extra thread(s)).\n";
-    }
+        gettimeofday(&end, 0);
+        correct &= (abs(res - standard_value) < epsilon);
+        duration = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1e6;
+        cout << "The sum of the vector: " << res << ", total time usage: " << duration << " second(s) (with OpenMP, " << thread << " thread(s)).\n";
+    }   
+
+    cout << "Value Check: OpenMP is " << (correct ? "correct" : "incorrect") << ".\n";
+
     return 0;
 }
