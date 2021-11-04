@@ -52,7 +52,7 @@ if (my_rank == 0) {
 Besides `int` type, we also test `long long`, `double`, `bool` and `char` type. We notice that OpenMPI is not very stable at the beginning of the program, resulting in some abnormal performances (execution times). Therefore, we execute an initialization loop before testing to make the testing process more stable. For each type, we test the round-trip time for 1,000,000 times, and take the average time as the round-trip time of that type. Here are the experiment results.
 
 | Type | Execution Time (us) |
-| --- | --- | 
+| --- | --- |
 | int | 0.380844 |
 | long long | 0.389223 |
 | double | 0.383667 |
