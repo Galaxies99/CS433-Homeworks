@@ -1,6 +1,6 @@
 # CS433-Homeworks
 
-The repository contains homeworks of CS433: Multicore Architecture and Parallel Programming of Shanghai Jiao Tong University. The course is taught by Prof. Xiaoyao Liang.
+The repository contains homeworks of CS433: Multicore Architecture and Parallel Programming in Shanghai Jiao Tong University. The course is taught by Prof. Xiaoyao Liang.
 
 ## Homework1: OpenMP
 
