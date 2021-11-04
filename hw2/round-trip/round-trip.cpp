@@ -21,7 +21,8 @@ int main() {
 
     // The total number of process should be 2.
     if (comm_sz != 2) {
-        cout << "[Error] Process number must be 2.\n";
+        if (my_rank == 0) cout << "[Error] Process number must be 2.\n";
+        MPI_Finalize();
         return 0;
     }
 

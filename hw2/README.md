@@ -76,7 +76,11 @@ make clean
 
 **Problem Statement**. Consider some children playing a voice passing game. The child #0 say a sentence to child #1, who will write down the first word and pass remaining words to child #2. Child #2 do the same thing as child #1, write down the first word (which is the second word of the original sentence) and pass the remaining words to next child... The first child with no word received write down his ID. Please simulate this process using MPI. (The WRITE DOWN action is substituted by PRINT TO STDOUT).
 
-**Solution.** The core of my implementation is shown as follows.
+**Solution.** The flowchart of my implementation is shown as follows. Specially, for process 0, first receive the input, and then execute the steps in the flowchart.
+
+![flowchart](assets/pass-string-flowchart.png)
+
+The core of my implementation is shown as follows.
 
 ```cpp
 string passage; // the initial passage / sentence.
@@ -86,116 +90,118 @@ int length; // the length of the passage.
 if (my_rank == 0) {
     // Process 0: (child 0) generate the passage and pass the passage to the 1st child.
     /*
-    If define AUTO_EXAMPLE (L40), the source code will generate a default passage;
+    If define AUTO_EXAMPLE (L43), the source code will generate a default passage;
     otherwise, you may enter the passage yourselves.
     */
     # define AUTO_EXAMPLE
     # ifdef AUTO_EXAMPLE
-    passage = "Hello world!";
+    passage = "Mary has a little lamb, little lamb, little lamb.";
     # else
     getline(cin, passage);
     # endif
-        
+    
     length = passage.size();
     psg = new char[length];
     for (int i = 0; i < length; ++ i) 
         psg[i] = passage[i];
-        
+    
+    cout << "Process " << my_rank << ": The original sentence is \"" << passage << "\".\n";
+
     // Pass (send) the passage to the 1st process (child) with tag 0.
     MPI_Send(psg, length, MPI_CHAR, 1, 0, MPI_COMM_WORLD);
 
     // De-allocate the spaces.
     delete [] psg;
-} else {
-    // Process k (k > 0): (child k) receive the passage from the previous child, write down the first word and pass the remaining words to next child.
-    bool finish;
-    int flag = 0, flag_finish = 0;
-    MPI_Status status;
-        
-    // Check the message repeatedly.
-    while (true) {
-        // If get the message with tag 0 from the previous process (child).
-        MPI_Iprobe(my_rank - 1, 0, MPI_COMM_WORLD, &flag, &status);
-
-        if (flag == 1) {
-            // Get the length of the message.
-            MPI_Get_count(&status, MPI_CHAR, &length);
-
-            if(length == 0) {
-                // Empty message means that the passage is over. Then the first child with no word received write down his ID.
-                finish = true;
-                cout << "Process " << my_rank << ": " << my_rank << endl;
-
-                // Pass the finish message to the following child with tag 1.
-                if (my_rank + 1 < comm_sz)
-                    MPI_Send(&finish, 1, MPI_CXX_BOOL, my_rank + 1, 1, MPI_COMM_WORLD);
-            } else {
-                // Allocate spaces for message.
-                psg = new char[length];
-
-                // Receive the message from the previous process (child).
-                MPI_Recv(psg, length, MPI_CHAR, my_rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    
-                // Get the next word.
-                int nxt = 0;
-                while(nxt < length && psg[nxt] != ' ' && psg[nxt] != '\t' && psg[nxt] != '\n') ++ nxt;
-
-                // Print the word in the screen.
-                cout << "Process " << my_rank << ": ";
-                for (int i = 0; i < nxt; ++ i) cout << psg[i];
-                cout << endl;
-
-                // Eliminate duplicate spaces, tab and blank lines.
-                while(nxt < length && (psg[nxt] == ' ' || psg[nxt] == '\t' || psg[nxt] == '\n')) ++ nxt;
-
-                // Pass (send) the rest passage to the next process (child) with tag 0.
-                if (my_rank + 1 < comm_sz) 
-                    MPI_Send(psg + nxt, length - nxt, MPI_CHAR, my_rank + 1, 0, MPI_COMM_WORLD);
-                    
-                // De-allocate the spaces.
-                delete [] psg;
-            }
-            break;
-        }
-        // If get the message with tag 1 from the previous process (child), that means the string passing is finished.
-        MPI_Iprobe(my_rank - 1, 1, MPI_COMM_WORLD, &flag_finish, &status);
-
-        // Pass the finish message to the following process.
-        if (flag_finish == 1) {
-            // Receive the message from the previous process (child).
-            MPI_Recv(&finish, 1, MPI_CXX_BOOL, my_rank - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-            // Value check.
-            if (! finish) cout << "[Error] Unexpected error occured!\n";
-
-            // Pass (send) the finish message to the next process (child) with tag 1.
-            if (my_rank + 1 < comm_sz)
-                MPI_Send(&finish, 1, MPI_CXX_BOOL, my_rank + 1, 1, MPI_COMM_WORLD);
-            break;
-        }
-    }
 }
 
+// Process k: (child k) receive the passage from the previous child, write down the first word and pass the remaining words to next child.
+bool finish; // finish signal
+int flag = 0, flag_finish = 0; // flag of receiving string; flag of receiving finish signal
+MPI_Status status; // message status
+int last_id = (my_rank == 0 ? comm_sz - 1 : my_rank - 1); // the last child
+int next_id = (my_rank == comm_sz - 1 ? 0 : my_rank + 1); // the next child  
+
+// Check the message repeatedly.
+while (true) {
+    // If get the message with tag 0 from the previous process (child).
+    MPI_Iprobe(last_id, 0, MPI_COMM_WORLD, &flag, &status);
+
+    if (flag == 1) {
+        // Get the length of the message.
+        MPI_Get_count(&status, MPI_CHAR, &length);
+
+        if(length == 0) {
+            // Empty message means that the passage is over. Then the first child with no word received write down his ID.
+            MPI_Recv(NULL, 0, MPI_CHAR, last_id, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            finish = true;
+            cout << "Process " << my_rank << ": " << my_rank << endl;
+
+            // Pass the finish message to the following child with tag 1.
+            MPI_Send(&finish, 1, MPI_CXX_BOOL, next_id, 1, MPI_COMM_WORLD);
+        } else {
+            // Allocate spaces for message.
+            psg = new char[length];
+
+            // Receive the message from the previous process (child).
+            MPI_Recv(psg, length, MPI_CHAR, last_id, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            
+            // Get the next word.
+            int nxt = 0;
+            while(nxt < length && psg[nxt] != ' ' && psg[nxt] != '\t' && psg[nxt] != '\n') ++ nxt;
+
+            // Print the word in the screen.
+            cout << "Process " << my_rank << ": ";
+            for (int i = 0; i < nxt; ++ i) cout << psg[i];
+            cout << endl;
+
+            // Eliminate duplicate spaces, tab and blank lines.
+            while(nxt < length && (psg[nxt] == ' ' || psg[nxt] == '\t' || psg[nxt] == '\n')) ++ nxt;
+
+            // Pass (send) the rest passage to the next process (child) with tag 0.
+            MPI_Send(psg + nxt, length - nxt, MPI_CHAR, next_id, 0, MPI_COMM_WORLD);
+            
+            // De-allocate the spaces.
+            delete [] psg;
+        }
+    }
+    // If get the message with tag 1 from the previous process (child), that means the string passing is finished.
+    MPI_Iprobe(last_id, 1, MPI_COMM_WORLD, &flag_finish, &status);
+
+    // Pass the finish message to the following process.
+    if (flag_finish == 1) {
+        // Receive the message from the previous process (child).
+        MPI_Recv(&finish, 1, MPI_CXX_BOOL, last_id, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        // Value check.
+        if (! finish) cout << "[Error] Unexpected error occured!\n";
+
+        // Pass (send) the finish message to the next process (child) with tag 1.
+        MPI_Send(&finish, 1, MPI_CXX_BOOL, next_id, 1, MPI_COMM_WORLD);
+        break;
+    }
+
+    // Wait for some time.
+    usleep(SLEEP_DURATION);
+}
 ```
 
-We use sentence "Hello world!" as an example. From the example we can see that the program outputs:
+We use sentence "Mary has a little lamb, little lamb, little lamb." as an example. From the example we can see that the program outputs:
 
 ```text
-Process 1: Hello
-Process 2: world!
-Process 3: 3
-```
-
-From the results we can verify the correctness of our program. Since process 0 send "Hello world!" to the process 1. Process 1 outputs the first world "Hello" and send the rest sentences to process 2. Process 2 outputs "world!" and the sentence is finished. Then process 3 receives nothing. Therefore it outputs its ID. The rest process does not need to output.
-
-If we use sentence "Hello" as an example, we can observe the following output.
-
-```text
-Process 1: Hello
+Process 0: The original sentence is "Mary has a little lamb, little lamb, little lamb.".
+Process 1: Mary
+Process 2: has
+Process 3: a
+Process 0: little
+Process 1: lamb,
+Process 2: little
+Process 3: lamb,
+Process 0: little
+Process 1: lamb.
 Process 2: 2
 ```
 
-which also verifies the correctness of our program.
+From the results we can verify the correctness of our program. After several passing, process 2 receive an empty string, therefore it outputs its ID. The rest process does not need to output.
 
 **User manual**. Use the following command to compile, execute and clean, respectively.
 
